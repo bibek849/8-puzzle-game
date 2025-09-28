@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8-Puzzle Game with A* Solver</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .game-wrapper {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .left-panel, .right-panel {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .puzzle-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            margin: 0 auto 20px;
+            background: #2c3e50;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .puzzle-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 5px;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tile {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border: 2px solid #34495e;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .tile:hover:not(.empty) {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .tile.empty {
+            background: transparent;
+            border: 2px dashed #7f8c8d;
+            cursor: default;
+        }
+
+        .tile.movable {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .file-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .stats {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 5px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .solution-display {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .solution-step {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+            transition: all 0.3s;
+        }
+
+        .solution-step.active {
+            background: #e3f2fd;
+            border-left-color: #2196f3;
+            transform: translateX(5px);
+        }
+
+        .algorithm-select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .heuristic-info {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .modal h2 {
+            color: #2ecc71;
+            margin-bottom: 20px;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .image-preview {
+            width: 100px;
+            height: 100px;
+            margin: 10px auto;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .image-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧩 8-Puzzle Game with A* Solver</h1>
+        
+        <div class="game-wrapper">
+            <div class="left-panel">
+                <div class="puzzle-container">
+                    <div class="puzzle-grid" id="puzzleGrid"></div>
+                </div>
+                
+                <div class="stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Moves:</span>
+                        <span class="stat-value" id="moveCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Time:</span>
+                        <span class="stat-value" id="timer">00:00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Status:</span>
+                        <span class="stat-value" id="gameStatus">Ready</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-panel">
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Upload Image (Optional):</label>
+                        <input type="file" id="imageUpload" accept="image/*">
+                        <label for="imageUpload" class="file-label">📷 Choose Image</label>
+                        <div class="image-preview" id="imagePreview" style="display: none;">
+                            <img id="previewImg" src="" alt="Preview">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>Select Algorithm:</label>
+                        <select id="algorithmSelect" class="algorithm-select">
+                            <option value="astar-manhattan">A* (Manhattan Distance)</option>
+                            <option value="astar-misplaced">A* (Misplaced Tiles)</option>
+                            <option value="astar-euclidean">A* (Euclidean Distance)</option>
+                            <option value="bfs">Breadth-First Search (BFS)</option>
+                            <option value="dfs">Depth-First Search (DFS)</option>
+                        </select>
+                        <div class="heuristic-info">
+                            <strong>Manhattan Distance:</strong> Sum of horizontal and vertical distances of each tile from its goal position. Most efficient for sliding puzzles.
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button onclick="newGame()">🎮 New Game</button>
+                        <button onclick="shufflePuzzle()">🔀 Shuffle</button>
+                        <button onclick="solvePuzzle()">🤖 Solve</button>
+                        <button onclick="resetPuzzle()">↩️ Reset</button>
+                        <button id="playPauseBtn" onclick="toggleAutoPlay()">▶️ Auto Play</button>
+                    </div>
+                </div>
+                
+                <div class="solution-display">
+                    <h3>Solution Steps:</h3>
+                    <div id="solutionSteps">
+                        <p style="color: #7f8c8d; text-align: center;">No solution yet. Click "Solve" to find the optimal path!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="winModal">
+        <div class="modal-content">
+            <h2>🎉 Congratulations!</h2>
+            <p>You solved the puzzle in <span id="finalMoves">0</span> moves!</p>
+            <p>Time: <span id="finalTime">00:00</span></p>
+            <button onclick="closeModal()">Play Again</button>
+        </div>
+    </div>
+    
+    <div class="modal" id="loadingModal">
+        <div class="modal-content">
+            <h3>Finding Solution...</h3>
+            <div class="loader"></div>
+            <p>Using <span id="currentAlgorithm"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        let puzzleState = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+        let goalState = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+        let moveCount = 0;
+        let startTime = null;
+        let timerInterval = null;
+        let solution = [];
+        let autoPlayInterval = null;
+        let currentStepIndex = 0;
+        let uploadedImage = null;
+        let imagePieces = [];
+
+        // Initialize game
+        function initGame() {
+            renderPuzzle();
+            updateStats();
+        }
+
+        // Render puzzle grid
+        function renderPuzzle() {
+            const grid = document.getElementById('puzzleGrid');
+            grid.innerHTML = '';
+            
+            puzzleState.forEach((value, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                
+                if (value === 0) {
+                    tile.classList.add('empty');
+                } else {
+                    if (uploadedImage && imagePieces.length > 0) {
+                        const img = document.createElement('img');
+                        img.src = imagePieces[value - 1];
+                        tile.appendChild(img);
+                    } else {
+                        tile.textContent = value;
+                    }
+                    
+                    if (isMovable(index)) {
+                        tile.classList.add('movable');
+                        tile.onclick = () => moveTile(index);
+                    }
+                }
+                
+                grid.appendChild(tile);
+            });
+        }
+
+        // Check if tile is movable
+        function isMovable(index) {
+            const emptyIndex = puzzleState.indexOf(0);
+            const row = Math.floor(index / 3);
+            const col = index % 3;
+            const emptyRow = Math.floor(emptyIndex / 3);
+            const emptyCol = emptyIndex % 3;
+            
+            return (Math.abs(row - emptyRow) === 1 && col === emptyCol) ||
+                   (Math.abs(col - emptyCol) === 1 && row === emptyRow);
+        }
+
+        // Move tile
+        function moveTile(index) {
+            const emptyIndex = puzzleState.indexOf(0);
+            
+            if (isMovable(index)) {
+                [puzzleState[index], puzzleState[emptyIndex]] = [puzzleState[emptyIndex], puzzleState[index]];
+                moveCount++;
+                
+                if (!startTime) {
+                    startTime = Date.now();
+                    startTimer();
+                }
+                
+                renderPuzzle();
+                updateStats();
+                
+                if (checkWin()) {
+                    handleWin();
+                }
+            }
+        }
+
+        // Shuffle puzzle
+        function shufflePuzzle() {
+            // Ensure solvable configuration
+            const moves = 100;
+            for (let i = 0; i < moves; i++) {
+                const emptyIndex = puzzleState.indexOf(0);
+                const neighbors = getNeighbors(puzzleState).map(n => n.state);
+                if (neighbors.length > 0) {
+                    const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    puzzleState = randomNeighbor;
+                }
+            }
+            
+            moveCount = 0;
+            solution = [];
+            currentStepIndex = 0;
+            resetTimer();
+            renderPuzzle();
+            updateStats();
+            document.getElementById('solutionSteps').innerHTML = '<p style="color: #7f8c8d; text-align: center;">Puzzle shuffled! Ready to solve.</p>';
+        }
+
+        // Reset puzzle
+        function resetPuzzle() {
+            puzzleState = [...goalState];
+            moveCount = 0;
+            solution = [];
+            currentStepIndex = 0;
+            resetTimer();
+            renderPuzzle();
+            updateStats();
+            document.getElementById('solutionSteps').innerHTML = '<p style="color: #7f8c8d; text-align: center;">Puzzle reset to solved state.</p>';
+        }
+
+        // New game
+        function newGame() {
+            resetPuzzle();
+            shufflePuzzle();
+        }
+
+        // Check win condition
+        function checkWin() {
+            return puzzleState.every((val, idx) => val === goalState[idx]);
+        }
+
+        // Handle win
+        function handleWin() {
+            stopTimer();
+            stopAutoPlay();
+            document.getElementById('finalMoves').textContent = moveCount;
+            document.getElementById('finalTime').textContent = document.getElementById('timer').textContent;
+            document.getElementById('winModal').style.display = 'flex';
+            document.getElementById('gameStatus').textContent = 'Solved!';
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('winModal').style.display = 'none';
+            newGame();
+        }
+
+        // Timer functions
+        function startTimer() {
+            if (!timerInterval) {
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        function resetTimer() {
+            stopTimer();
+            startTime = null;
+            document.getElementById('timer').textContent = '00:00';
+        }
+
+        function updateTimer() {
+            if (startTime) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('timer').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('moveCount').textContent = moveCount;
+            document.getElementById('gameStatus').textContent = checkWin() ? 'Solved!' : 'Playing';
+        }
+
+        // A* Algorithm Implementation
+        class Node {
+            constructor(state, parent = null, action = null, g = 0, h = 0) {
+                this.state = state;
+                this.parent = parent;
+                this.action = action;
+                this.g = g;  // Cost from start
+                this.h = h;  // Heuristic estimate to goal
+                this.f = g + h;  // Total cost
+            }
+        }
+
+        // Heuristic functions
+        function manhattanDistance(state) {
+            let distance = 0;
+            for (let i = 0; i < state.length; i++) {
+                if (state[i] !== 0) {
+                    const goalPos = goalState.indexOf(state[i]);
+                    const currentRow = Math.floor(i / 3);
+                    const currentCol = i % 3;
+                    const goalRow = Math.floor(goalPos / 3);
+                    const goalCol = goalPos % 3;
+                    distance += Math.abs(currentRow - goalRow) + Math.abs(currentCol - goalCol);
+                }
+            }
+            return distance;
+        }
+
+        function misplacedTiles(state) {
+            let count = 0;
+            for (let i = 0; i < state.length; i++) {
+                if (state[i] !== 0 && state[i] !== goalState[i]) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        function euclideanDistance(state) {
+            let distance = 0;
+            for (let i = 0; i < state.length; i++) {
+                if (state[i] !== 0) {
+                    const goalPos = goalState.indexOf(state[i]);
+                    const currentRow = Math.floor(i / 3);
+                    const currentCol = i % 3;
+                    const goalRow = Math.floor(goalPos / 3);
+                    const goalCol = goalPos % 3;
+                    distance += Math.sqrt(Math.pow(currentRow - goalRow, 2) + Math.pow(currentCol - goalCol, 2));
+                }
+            }
+            return distance;
+        }
+
+        // Get neighbors
+        function getNeighbors(state) {
+            const neighbors = [];
+            const emptyIndex = state.indexOf(0);
+            const row = Math.floor(emptyIndex / 3);
+            const col = emptyIndex % 3;
+            
+            // Possible moves: up, down, left, right
+            const moves = [
+                { dr: -1, dc: 0, action: 'Up' },
+                { dr: 1, dc: 0, action: 'Down' },
+                { dr: 0, dc: -1, action: 'Left' },
+                { dr: 0, dc: 1, action: 'Right' }
+            ];
+            
+            for (const move of moves) {
+                const newRow = row + move.dr;
+                const newCol = col + move.dc;
+                
+                if (newRow >= 0 && newRow < 3 && newCol >= 0 && newCol < 3) {
+                    const newIndex = newRow * 3 + newCol;
+                    const newState = [...state];
+                    [newState[emptyIndex], newState[newIndex]] = [newState[newIndex], newState[emptyIndex]];
+                    neighbors.push({ state: newState, action: move.action });
+                }
+            }
+            
+            return neighbors;
+        }
+
+        // A* search
+        function aStarSearch(startState, heuristic) {
+            const openSet = [new Node(startState, null, null, 0, heuristic(startState))];
+            const closedSet = new Set();
+            let nodesExpanded = 0;
+            
+            while (openSet.length > 0) {
+                // Sort by f value
+                openSet.sort((a, b) => a.f - b.f);
+                const current = openSet.shift();
+                nodesExpanded++;
+                
+                // Check if goal reached
+                if (current.state.every((val, idx) => val === goalState[idx])) {
+                    const path = [];
+                    let node = current;
+                    while (node.parent) {
+                        path.unshift({ action: node.action, state: node.state });
+                        node = node.parent;
+                    }
+                    return { path, nodesExpanded };
+                }
+                
+                closedSet.add(current.state.toString());
+                
+                // Explore neighbors
+                const neighbors = getNeighbors(current.state);
+                for (const neighbor of neighbors) {
+                    if (!closedSet.has(neighbor.state.toString())) {
+                        const g = current.g + 1;
+                        const h = heuristic(neighbor.state);
+                        const newNode = new Node(neighbor.state, current, neighbor.action, g, h);
+                        
+                        // Check if already in open set with higher cost
+                        const existingIndex = openSet.findIndex(n => n.state.toString() === neighbor.state.toString());
+                        if (existingIndex === -1) {
+                            openSet.push(newNode);
+                        } else if (newNode.f < openSet[existingIndex].f) {
+                            openSet[existingIndex] = newNode;
+                        }
+                    }
+                }
+                
+                // Prevent infinite loop
+                if (nodesExpanded > 100000) {
+                    return { path: [], nodesExpanded };
+                }
+            }
+            
+            return { path: [], nodesExpanded };
+        }
+
+        // BFS search
+        function bfsSearch(startState) {
+            const queue = [{ state: startState, path: [] }];
+            const visited = new Set([startState.toString()]);
+            let nodesExpanded = 0;
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                nodesExpanded++;
+                
+                if (current.state.every((val, idx) => val === goalState[idx])) {
+                    return { path: current.path, nodesExpanded };
+                }
+                
+                const neighbors = getNeighbors(current.state);
+                for (const neighbor of neighbors) {
+                    if (!visited.has(neighbor.state.toString())) {
+                        visited.add(neighbor.state.toString());
+                        queue.push({
+                            state: neighbor.state,
+                            path: [...current.path, { action: neighbor.action, state: neighbor.state }]
+                        });
+                    }
+                }
+                
+                if (nodesExpanded > 50000) {
+                    return { path: [], nodesExpanded };
+                }
+            }
+            
+            return { path: [], nodesExpanded };
+        }
+
+        // DFS search (limited depth)
+        function dfsSearch(startState, maxDepth = 30) {
+            const stack = [{ state: startState, path: [], depth: 0 }];
+            const visited = new Set();
+            let nodesExpanded = 0;
+            
+            while (stack.length > 0) {
+                const current = stack.pop();
+                nodesExpanded++;
+                
+                if (current.state.every((val, idx) => val === goalState[idx])) {
+                    return { path: current.path, nodesExpanded };
+                }
+                
+                if (current.depth < maxDepth) {
+                    visited.add(current.state.toString());
+                    
+                    const neighbors = getNeighbors(current.state);
+                    for (const neighbor of neighbors) {
+                        if (!visited.has(neighbor.state.toString())) {
+                            stack.push({
+                                state: neighbor.state,
+                                path: [...current.path, { action: neighbor.action, state: neighbor.state }],
+                                depth: current.depth + 1
+                            });
+                        }
+                    }
+                }
+                
+                if (nodesExpanded > 50000) {
+                    return { path: [], nodesExpanded };
+                }
+            }
+            
+            return { path: [], nodesExpanded };
+        }
+
+        // Solve puzzle
+        function solvePuzzle() {
+            if (checkWin()) {
+                alert('Puzzle is already solved!');
+                return;
+            }
+            
+            const algorithm = document.getElementById('algorithmSelect').value;
+            document.getElementById('currentAlgorithm').textContent = 
+                document.getElementById('algorithmSelect').options[document.getElementById('algorithmSelect').selectedIndex].text;
+            document.getElementById('loadingModal').style.display = 'flex';
+            
+            setTimeout(() => {
+                let result;
+                const startSolveTime = performance.now();
+                
+                switch (algorithm) {
+                    case 'astar-manhattan':
+                        result = aStarSearch(puzzleState, manhattanDistance);
+                        break;
+                    case 'astar-misplaced':
+                        result = aStarSearch(puzzleState, misplacedTiles);
+                        break;
+                    case 'astar-euclidean':
+                        result = aStarSearch(puzzleState, euclideanDistance);
+                        break;
+                    case 'bfs':
+                        result = bfsSearch(puzzleState);
+                        break;
+                    case 'dfs':
+                        result = dfsSearch(puzzleState);
+                        break;
+                    default:
+                        result = aStarSearch(puzzleState, manhattanDistance);
+                }
+                
+                const endSolveTime = performance.now();
+                const solveTime = ((endSolveTime - startSolveTime) / 1000).toFixed(2);
+                
+                document.getElementById('loadingModal').style.display = 'none';
+                
+                if (result.path.length > 0) {
+                    solution = result.path;
+                    currentStepIndex = 0;
+                    displaySolution(result.path, result.nodesExpanded, solveTime);
+                } else {
+                    document.getElementById('solutionSteps').innerHTML = 
+                        '<p style="color: #e74c3c;">No solution found. The puzzle might be unsolvable.</p>';
+                }
+            }, 100);
+        }
+
+        // Display solution
+        function displaySolution(path, nodesExpanded, solveTime) {
+            const stepsDiv = document.getElementById('solutionSteps');
+            let html = `
+                <div style="background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>Solution found!</strong><br>
+                    Steps: ${path.length}<br>
+                    Nodes expanded: ${nodesExpanded}<br>
+                    Time: ${solveTime}s
+                </div>
+            `;
+            
+            path.forEach((step, index) => {
+                html += `<div class="solution-step" id="step-${index}">
+                    Step ${index + 1}: Move tile ${step.action}
+                </div>`;
+            });
+            
+            stepsDiv.innerHTML = html;
+        }
+
+        // Auto play solution
+        function toggleAutoPlay() {
+            if (autoPlayInterval) {
+                stopAutoPlay();
+            } else {
+                startAutoPlay();
+            }
+        }
+
+        function startAutoPlay() {
+            if (solution.length === 0) {
+                alert('Please solve the puzzle first!');
+                return;
+            }
+            
+            document.getElementById('playPauseBtn').textContent = '⏸️ Pause';
+            currentStepIndex = 0;
+            
+            autoPlayInterval = setInterval(() => {
+                if (currentStepIndex < solution.length) {
+                    // Highlight current step
+                    document.querySelectorAll('.solution-step').forEach(step => {
+                        step.classList.remove('active');
+                    });
+                    document.getElementById(`step-${currentStepIndex}`).classList.add('active');
+                    
+                    // Apply move
+                    puzzleState = [...solution[currentStepIndex].state];
+                    moveCount++;
+                    renderPuzzle();
+                    updateStats();
+                    
+                    if (!startTime) {
+                        startTime = Date.now();
+                        startTimer();
+                    }
+                    
+                    currentStepIndex++;
+                    
+                    if (checkWin()) {
+                        stopAutoPlay();
+                        handleWin();
+                    }
+                } else {
+                    stopAutoPlay();
+                }
+            }, 1000);
+        }
+
+        function stopAutoPlay() {
+            clearInterval(autoPlayInterval);
+            autoPlayInterval = null;
+            document.getElementById('playPauseBtn').textContent = '▶️ Auto Play';
+        }
+
+        // Image upload handling
+        document.getElementById('imageUpload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    uploadedImage = event.target.result;
+                    document.getElementById('previewImg').src = uploadedImage;
+                    document.getElementById('imagePreview').style.display = 'block';
+                    splitImageIntoPieces(uploadedImage);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Split image into 9 pieces
+        function splitImageIntoPieces(imageSrc) {
+            const img = new Image();
+            img.onload = function() {
+                const pieceWidth = img.width / 3;
+                const pieceHeight = img.height / 3;
+                imagePieces = [];
+                
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 3; col++) {
+                        if (row === 2 && col === 2) continue; // Skip the last piece (empty space)
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.width = pieceWidth;
+                        canvas.height = pieceHeight;
+                        const ctx = canvas.getContext('2d');
+                        
+                        ctx.drawImage(
+                            img,
+                            col * pieceWidth, row * pieceHeight,
+                            pieceWidth, pieceHeight,
+                            0, 0,
+                            pieceWidth, pieceHeight
+                        );
+                        
+                        imagePieces.push(canvas.toDataURL());
+                    }
+                }
+                
+                renderPuzzle();
+            };
+            img.src = imageSrc;
+        }
+
+        // Algorithm selection change handler
+        document.getElementById('algorithmSelect').addEventListener('change', function() {
+            const heuristicInfo = document.querySelector('.heuristic-info');
+            const algorithm = this.value;
+            
+            const descriptions = {
+                'astar-manhattan': '<strong>Manhattan Distance:</strong> Sum of horizontal and vertical distances of each tile from its goal position. Most efficient for sliding puzzles.',
+                'astar-misplaced': '<strong>Misplaced Tiles:</strong> Counts the number of tiles that are not in their correct position. Simple but less informative heuristic.',
+                'astar-euclidean': '<strong>Euclidean Distance:</strong> Straight-line distance between current and goal positions. Good balance between accuracy and computation.',
+                'bfs': '<strong>Breadth-First Search:</strong> Explores all nodes at current depth before moving deeper. Guarantees shortest path but can be slow.',
+                'dfs': '<strong>Depth-First Search:</strong> Explores as far as possible along each branch. Fast but may not find optimal solution.'
+            };
+            
+            heuristicInfo.innerHTML = descriptions[algorithm];
+        });
+
+        // Check if puzzle is solvable
+        function isSolvable(state) {
+            let inversions = 0;
+            const flatState = state.filter(x => x !== 0);
+            
+            for (let i = 0; i < flatState.length - 1; i++) {
+                for (let j = i + 1; j < flatState.length; j++) {
+                    if (flatState[i] > flatState[j]) {
+                        inversions++;
+                    }
+                }
+            }
+            
+            return inversions % 2 === 0;
+        }
+
+        // Initialize the game on page load
+        window.onload = function() {
+            initGame();
+            newGame();
+        };
+    </script>
+</body>
+</html>
+                
